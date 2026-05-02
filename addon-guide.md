@@ -125,6 +125,68 @@ include $(OF_ROOT)/libs/openFrameworksCompiled/project/makefileCommon/compile.pr
 
 The `OF_ROOT` path must point to the oF installation root. `../../..` works when the project is at `addons/{name}/{project}/` (3 levels deep).
 
+## Writing Test Apps with ofxUnitTests
+
+Use [ofxUnitTests](https://github.com/openframeworks/openFrameworks/tree/master/addons/ofxUnitTests) for structured test assertions with proper exit codes.
+
+### Setup
+
+Add `ofxUnitTests` to your test app's `addons.make`:
+
+```
+ofxMyAddon
+ofxUnitTests
+```
+
+### Test App Structure
+
+```cpp
+// testApp/src/ofApp.h
+#pragma once
+#include "ofMain.h"
+#include "ofxUnitTests.h"
+
+class ofApp : public ofxUnitTestsApp {
+    void run() override;
+};
+```
+
+```cpp
+// testApp/src/ofApp.cpp
+#include "ofApp.h"
+#include "ofxMyAddon.h"
+
+void ofApp::run() {
+    ofxTest(my_function() == expected, "test description");
+    ofxTestEq(actual, expected, "equality test");
+    ofxTestGt(value, threshold, "greater than");
+    ofxTestLt(value, threshold, "less than");
+}
+```
+
+```cpp
+// testApp/src/main.cpp
+#include "ofMain.h"
+#include "ofAppNoWindow.h"
+#include "ofApp.h"
+
+int main() {
+    ofInit();
+    auto window = std::make_shared<ofAppNoWindow>();
+    auto app = std::make_shared<ofApp>();
+    ofRunApp(window, app);
+    return ofRunMainLoop();
+}
+```
+
+### Key Points
+
+- Inherit from `ofxUnitTestsApp`, override `run()`
+- Use `ofAppNoWindow` for headless execution (no display server needed)
+- `ofxUnitTestsApp::setup()` calls `run()` then `ofExit(failureCount)`
+- Exit code = number of failed tests (0 = all pass)
+- Macros: `ofxTest(condition, name)`, `ofxTestEq(a, b, name)`, `ofxTestGt(a, b, name)`, `ofxTestLt(a, b, name)`
+
 ## CI with of-actions
 
 Use [2bbb/of-actions](https://github.com/2bbb/of-actions) for automated CI:
@@ -142,19 +204,41 @@ on:
 
 jobs:
   build:
-    uses: 2bbb/of-actions/.github/workflows/build-addon.yml@v1
+    uses: 2bbb/of-actions/.github/workflows/build-addon.yml@v2
     with:
       of_version: "0.12.1"
       addon_name: "ofxMyAddon"
       test_app: "testApp"
 ```
 
+### Test Mode
+
+For addons using ofxUnitTests, set `test_mode: "test"` to fail CI on test failures:
+
+```yaml
+jobs:
+  build:
+    uses: 2bbb/of-actions/.github/workflows/build-addon.yml@v2
+    with:
+      of_version: "0.12.1"
+      addon_name: "ofxMyAddon"
+      test_app: "testApp"
+      test_mode: "test"
+      configs: '["Debug", "Release"]'
+```
+
+| `test_mode` | Behavior |
+|---|---|
+| `build-only` | Compile only, don't execute |
+| `run` | Execute, ignore exit code (default) |
+| `test` | Execute, **fail CI on non-zero exit** |
+
 ### With Windows Preprocessor Defines
 
 ```yaml
 jobs:
   build:
-    uses: 2bbb/of-actions/.github/workflows/build-addon.yml@v1
+    uses: 2bbb/of-actions/.github/workflows/build-addon.yml@v2
     with:
       of_version: "0.12.1"
       addon_name: "ofxMyAddon"
@@ -167,7 +251,7 @@ jobs:
 ```yaml
 jobs:
   build:
-    uses: 2bbb/of-actions/.github/workflows/build-app.yml@v1
+    uses: 2bbb/of-actions/.github/workflows/build-app.yml@v2
     with:
       of_version: "0.12.1"
       app_name: "myApp"
